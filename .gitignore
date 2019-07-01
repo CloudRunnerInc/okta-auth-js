@@ -4,4 +4,3 @@ node_modules/*
 build2
 test/SpecRunner.html
 npm-debug.log
-lib/config.js
