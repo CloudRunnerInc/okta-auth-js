@@ -67,7 +67,9 @@ yarn add --save @okta/okta-auth-js
 npm install --save @okta/okta-auth-js
 ```
 
-After installing `@okta/okta-auth-js`, the minified auth client will be installed to `node_modules/@okta/okta-auth-js/dist`. You can copy the `dist` contents to a publicly hosted directory. However, if you're using a bundler like [Webpack](https://webpack.github.io/) or [Browserify](http://browserify.org/), you can simply import the module using CommonJS.
+If you are using the JS on a web page from the browser, you can copy the `node_modules/@okta/okta-auth-js/dist` contents to publicly hosted directory, and include a reference to the `okta-auth-js.min.js` file in a `<script>` tag.  
+
+However, if you're using a bundler like [Webpack](https://webpack.github.io/) or [Browserify](http://browserify.org/), you can simply import the module using CommonJS.
 
 ```javascript
 var OktaAuth = require('@okta/okta-auth-js');
@@ -86,7 +88,7 @@ var OktaAuth = require('@okta/okta-auth-js/jquery');
 
 ## Usage guide
 
-For an overview of the client's features and authentication flows, check out [our developer docs](https://developer.okta.com/docs/guides/okta_auth_sdk). There, you will learn how to use the Auth SDK on a simple static page to:
+For an overview of the client's features and authentication flows, check out [our developer docs](https://developer.okta.com/code/javascript/okta_auth_sdk). There, you will learn how to use the Auth SDK on a simple static page to:
 
 * Retrieve and store an OpenID Connect (OIDC) token
 * Get an Okta session
@@ -146,12 +148,21 @@ tokenManager: {
 }
 ```
 
-
 By default, the `tokenManager` will attempt to renew expired tokens. When an expired token is requested by the `tokenManager.get()` method, a renewal request is executed to update the token. If you wish to manually control token renewal, set `autoRenew` to false to disable this feature. You can listen to  [`expired`](#tokenmanageronevent-callback-context) events to know when the token has expired.
 
 ```javascript
 tokenManager: {
   autoRenew: false
+}
+```
+
+Renewing tokens slightly early helps ensure a stable user experience. By default, the `expired` event will fire 30 seconds before actual expiration time. If `autoRenew` is set to true, tokens will be renewed within 30 seconds of expiration, if accessed with `tokenManager.get()`. You can customize this value by setting the `expireEarlySeconds` option. The value should be large enough to account for network latency between the client and Okta's servers.
+
+```javascript
+// Emit expired event 2 minutes before expiration
+// Tokens accessed with tokenManager.get() will auto-renew within 2 minutes of expiration
+tokenManager: {
+  expireEarlySeconds: 120
 }
 ```
 
@@ -162,12 +173,13 @@ tokenManager: {
 | `issuer`       | Specify a custom issuer to perform the OIDC flow. Defaults to the base url parameter if not provided. |
 | `clientId`     | Client Id pre-registered with Okta for the OIDC authentication flow. |
 | `redirectUri`  | The url that is redirected to when using `token.getWithRedirect`. This must be pre-registered as part of client registration. If no `redirectUri` is provided, defaults to the current origin. |
-| `grantType`  | Specify `grantType` for this Application. Supported types are `implicit` and `authorization_code`. Defaults to `implicit` |
+| `pkce`  | If set to true, the authorization flow will automatically use PKCE.  The authorize request will use `response_type=code`, and `grant_type=authorization_code` will be used on the token request.  All these details are handled for you, including the creation and verification of code verifiers. |
 | `authorizeUrl` | Specify a custom authorizeUrl to perform the OIDC flow. Defaults to the issuer plus "/v1/authorize". |
 | `userinfoUrl`  | Specify a custom userinfoUrl. Defaults to the issuer plus "/v1/userinfo". |
 | `tokenUrl`  | Specify a custom tokenUrl. Defaults to the issuer plus "/v1/token". |
 | `ignoreSignature` | ID token signatures are validated by default when `token.getWithoutPrompt`, `token.getWithPopup`,  `token.getWithRedirect`, and `token.verify` are called. To disable ID token signature validation for these methods, set this value to `true`. |
 | | This option should be used only for browser support and testing purposes. |
+| `maxClockSkew` | Defaults to 300 (five minutes). This is the maximum difference allowed between a client's clock and Okta's, in seconds, when validating tokens. Setting this to 0 is not recommended, because it increases the likelihood that valid tokens will fail validation.
 
 ##### Example Client
 
@@ -197,12 +209,12 @@ var authClient = new OktaAuth(config);
 
 By default the `implicit` OAuth flow will be used. It is widely supported by most browsers. PKCE is a newer flow which is more secure, but does require certain capabilities from the browser.
 
-To use PKCE flow, set `grantType` to `authorization_code` in your config.
+To use PKCE flow, set `pkce` to `true` in your config.
 
 ```javascript
 
 var config = {
-  grantType:  'authorization_code',
+  pkce:  true,
 
   // other config
   issuer: 'https://{yourOktaDomain}/oauth2/default',
@@ -1392,7 +1404,7 @@ The following configuration options can **only** be included in `token.getWithou
 | :-------: | ----------|
 | `sessionToken` | Specify an Okta sessionToken to skip reauthentication when the user already authenticated using the Authentication Flow. |
 | `responseMode` | Specify how the authorization response should be returned. You will generally not need to set this unless you want to override the default values for `token.getWithRedirect`. See [Parameter Details](https://developer.okta.com/docs/api/resources/oidc#parameter-details) for a list of available modes. |
-| `responseType` | Specify the [response type](https://developer.okta.com/docs/api/resources/oidc#request-parameters) for OIDC authentication. The default value is based on the configured `grantType`. If `grantType` is `implicit` (the default setting), `responseType` will have a default value of `id_token`. If `grantType` is `authorization_code`, the default value will be `code`. |
+| `responseType` | Specify the [response type](https://developer.okta.com/docs/api/resources/oidc#request-parameters) for OIDC authentication. The default value is `id_token`. If `pkce` is `true`, this option will be ingored. |
 | | Use an array if specifying multiple response types - in this case, the response will contain both an ID Token and an Access Token. `responseType: ['id_token', 'token']` |
 | `scopes` | Specify what information to make available in the returned `id_token` or `access_token`. For OIDC, you must include `openid` as one of the scopes. Defaults to `['openid', 'email']`. For a list of available scopes, see [Scopes and Claims](https://developer.okta.com/docs/api/resources/oidc#access-token-scopes-and-claims). |
 | `state` | Specify a state that will be validated in an OAuth response. This is usually only provided during redirect flows to obtain an authorization code. Defaults to a random string. |
